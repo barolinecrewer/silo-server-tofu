@@ -89,7 +89,7 @@ graph TD
         models["access_groups.go<br/>domain models + calls<br/>(one file per API domain)"]
     end
 
-    contract["silo-api-reference.json<br/>OpenAPI 3 contract<br/>619 paths · 1034 schemas"]
+    contract["live OpenAPI 3 contract<br/>&lt;server&gt;/api/v2/openapi.json<br/>~619 paths · ~1034 schemas"]
 
     API["Silo server /api/v2"]
 
@@ -172,10 +172,9 @@ repo is worked on.
 
 - Silo docs: <https://siloserver.org/docs> — API usage guide:
   <https://siloserver.org/docs/api>
-- Your server's interactive reference: `<server>/api/v2/docs` and OpenAPI
-  document at `<server>/api/v2/openapi.json`
-- The pinned contract this repo builds against:
-  [`silo-api-reference.json`](./silo-api-reference.json)
+- Your server's interactive reference: `<server>/api/v2/docs`, and the
+  OpenAPI document at `<server>/api/v2/openapi.json` — the live contract
+  this provider implements against; it is not vendored in this repo
 
 ## Legal
 

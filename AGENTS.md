@@ -33,36 +33,41 @@ Non-goals:
 
 ## Ground rules
 
-1. **`silo-api-reference.json` (repo root) is the source of truth.** It is the
-   full OpenAPI 3 document for the targeted server: 619 paths, 1034 schemas,
-   ~5.6 MB. Every request body, response schema, query parameter, header, and
-   status code must be verified against it before writing code. Never guess
-   field names or shapes. Do not load it into context wholesale — query it.
+1. **The live API reference is the source of truth.** Each Silo server
+   documents the API it runs at `<server>/api/v2/openapi.json` (OpenAPI 3;
+   ~619 paths, ~1034 schemas, several MB). Every request body, response
+   schema, query parameter, header, and status code must be verified against
+   it before writing code. Never guess field names or shapes. Do not load
+   the document into context wholesale — fetch and query it.
 
-2. **Query the reference with `jq` or `python3`, not by reading it.** Useful
-   entry points:
+2. **Fetch the reference with `curl`, query it with `jq` or `python3`, never
+   read it.** Useful entry points:
 
    ```sh
+   # Fetch the live contract once per task (public; no sign-in needed)
+   curl -sL <server>/api/v2/openapi.json -o /tmp/silo-openapi.json
+
    # All endpoints for a domain
-   jq -r '.paths | keys[]' silo-api-reference.json | grep access-groups
+   jq -r '.paths | keys[]' /tmp/silo-openapi.json | grep access-groups
 
    # One endpoint's full contract (body, responses, params, headers)
-   jq '.paths["/api/v2/admin/access-groups/{id}"].put' silo-api-reference.json
+   jq '.paths["/api/v2/admin/access-groups/{id}"].put' /tmp/silo-openapi.json
 
    # A response/request schema
-   jq '.components.schemas.AdminAccessGroup' silo-api-reference.json
+   jq '.components.schemas.AdminAccessGroup' /tmp/silo-openapi.json
 
    # Where a schema is referenced
    jq -r '[.paths | to_entries[] | .key as $p | .value | to_entries[]
      | select(.. | scalars as $v | select($v == "#/components/schemas/AdminAccessGroup")) | $p]
-     | unique | .[]' silo-api-reference.json
+     | unique | .[]' /tmp/silo-openapi.json
    ```
 
-3. **The reference ships with the repo on purpose.** It pins the contract the
-   provider compiles against, offline. A live server may expose a newer or
-   older document at `<server>/api/v2/openapi.json`. If the live document
-   differs in a way that breaks an implementation, open an issue comparing the
-   two documents instead of silently coding against a different shape.
+3. **The contract is not vendored in this repo.** The document is large and
+   versioned with the server; the provider targets the stable `/api/v2`
+   contract shapes. Note the server version a document came from when
+   implementing against it. If a live document differs from what an
+   implementation expects, open an issue comparing the two documents instead
+   of silently coding against a different shape.
 
 4. **Interactive reference for exploration:** `<server>/api/v2/docs` needs no
    sign-in. Requests do. The public usage guide is
@@ -75,7 +80,6 @@ silo-server-tofu/
 ├── AGENTS.md                  this file
 ├── CLAUDE.md                  pointer to this file
 ├── README.md                  project overview + scaffold diagram
-├── silo-api-reference.json    the API contract (see ground rules)
 ├── main.go                    provider entry point (providerserver)
 ├── go.mod / go.sum            module github.com/barolinecrewer/silo-server-tofu
 ├── justfile                   build / test / testacc / tofu-validate / lint / generate
@@ -193,7 +197,7 @@ provider that works and one that corrupts state.
 Follow the `access_group` pattern exactly. The checklist:
 
 1. **Verify the contract.** Pull every operation's path, body, response,
-   params, and headers from `silo-api-reference.json` (see ground rules for
+   params, and headers from the live reference (see ground rules for
    jq snippets). Note the capability endpoint and the paginated list shape.
 2. **Client first.** Add the domain file in `internal/client`: write-body
    struct (pointers, `omitempty`), response struct, and one method per

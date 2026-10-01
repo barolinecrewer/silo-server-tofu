@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-// Access group endpoints. Contract:
-// silo-api-reference.json paths /api/v2/admin/access-groups{,/{id}} —
+// Access group endpoints. Contract (live reference,
+// <server>/api/v2/openapi.json): paths /api/v2/admin/access-groups{,/{id}} —
 // create (POST -> 201), read (GET -> 200 + ETag), full-replace update
 // (PUT, If-Match required), delete (DELETE, If-Match required -> 204),
 // cursor-paginated list.
