@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -v -count=1 ./...
+
+  tofu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: latest
+
+      - name: Build provider
+        run: go build -o bin/terraform-provider-silo .
+
+      - name: Validate examples with tofu
+        run: |
+          set -eu
+          tfrc="$(mktemp -t silo-dev.XXXXXX.tfrc)"
+          printf 'provider_installation {\n  dev_overrides {\n    "silo-server/silo" = "%s/bin"\n  }\n  direct {}\n}\n' "$GITHUB_WORKSPACE" > "$tfrc"
+          for d in examples/provider examples/resources/* examples/data-sources/*; do
+            [ -d "$d" ] || continue
+            echo "tofu validate: $d"
+            (cd "$d" && TF_CLI_CONFIG_FILE="$tfrc" tofu validate >/dev/null)
+          done
+
+      - name: Check example formatting
+        run: tofu fmt -check -recursive examples/

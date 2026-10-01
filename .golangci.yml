@@ -1,0 +1,22 @@
+# Starter golangci-lint config. Extend rather than relax: keep the
+# provider dependency-light and vet-clean per AGENTS.md.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+
+linters-settings:
+  revive:
+    rules:
+      - name: package-comments
+        disabled: true
