@@ -58,13 +58,16 @@ func (p *siloProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp 
 			"administrative configuration as infrastructure as code.",
 		Attributes: map[string]providercfg.Attribute{
 			"base_url": providercfg.StringAttribute{
-				Required: true,
+				// Optional with the env fallback in Configure: a Required
+				// attribute is rejected by tofu before Configure runs, which
+				// would make the SILO_BASE_URL fallback unreachable.
+				Optional: true,
 				Description: "Silo server root, for example \"https://silo.example.org\". " +
 					"Must not include the /api/v2 path. " +
 					"Defaults to the " + envBaseURL + " environment variable.",
 			},
 			"api_key": providercfg.StringAttribute{
-				Required:  true,
+				Optional:  true,
 				Sensitive: true,
 				Description: "API key for the server, sent as a bearer token. Keys inherit " +
 					"their owner's permissions: admin resources need an admin-owned key. " +

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Working agreement for coding agents (and humans) in this repository. Read this
-before making changes. When CLAUDE.md and this file disagree, this file wins.
+before making changes. (CLAUDE.md is a symlink to this file.)
 
 ## What this repo is
 
@@ -34,8 +34,8 @@ Non-goals:
 ## Ground rules
 
 1. **The live API reference is the source of truth.** Each Silo server
-   documents the API it runs at `<server>/api/v2/openapi.json` (OpenAPI 3;
-   ~619 paths, ~1034 schemas, several MB). Every request body, response
+   documents the API it runs at `<server>/api/v2/openapi.json` (OpenAPI 3,
+   several MB). Every request body, response
    schema, query parameter, header, and status code must be verified against
    it before writing code. Never guess field names or shapes. Do not load
    the document into context wholesale — fetch and query it.

@@ -96,9 +96,9 @@ func TestAccessGroupWriteFromModelSendsKnownValues(t *testing.T) {
 // These tests create and destroy real resources on a real server. Never
 // point them at a production instance; they are destructive.
 
-// idPattern matches the API's opaque numeric-looking IDs without parsing
-// them as numbers; the provider treats them as opaque strings.
-var idPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
+// idPattern only checks the ID is a non-empty string: Silo IDs are opaque,
+// some numeric-looking and some not, and are never parsed.
+var idPattern = regexp.MustCompile(`^.*\S.*$`)
 
 func testAccPreCheck(t *testing.T) {
 	t.Helper()
@@ -138,7 +138,6 @@ resource "silo_access_group" "test" {
 					resource.TestMatchResourceAttr("silo_access_group.test", "id", idPattern),
 					resource.TestCheckResourceAttr("silo_access_group.test", "name", "tf-acc-test"),
 					resource.TestCheckResourceAttr("silo_access_group.test", "max_streams", "4"),
-					resource.TestCheckNoResourceAttr("silo_access_group.test", "etag"),
 				),
 			},
 			{

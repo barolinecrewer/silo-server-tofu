@@ -270,7 +270,23 @@ func (r *accessGroupResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	group, etag, err := r.client.UpdateAccessGroup(ctx, state.ID.ValueString(), state.ETag.ValueString(), write)
+	// The create response and a fresh import carry no ETag; read the current
+	// one so the PUT is properly guarded. An unguarded PUT would either get a
+	// 428 or, worse, silently overwrite external changes.
+	etag := state.ETag.ValueString()
+	if etag == "" {
+		_, current, err := r.client.GetAccessGroup(ctx, state.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error reading access group",
+				"Could not read access group "+state.ID.ValueString()+" before update: "+err.Error(),
+			)
+			return
+		}
+		etag = current
+	}
+
+	group, etag, err := r.client.UpdateAccessGroup(ctx, state.ID.ValueString(), etag, write)
 	if err != nil {
 		if client.IsPreconditionFailed(err) || client.IsPreconditionRequired(err) {
 			resp.Diagnostics.AddError(
@@ -304,9 +320,6 @@ func (r *accessGroupResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	if err := r.client.DeleteAccessGroup(ctx, state.ID.ValueString(), state.ETag.ValueString()); err != nil {
-		if client.IsNotFound(err) {
-			return
-		}
 		if client.IsPreconditionFailed(err) || client.IsPreconditionRequired(err) {
 			resp.Diagnostics.AddError(
 				"Access group changed outside Terraform",

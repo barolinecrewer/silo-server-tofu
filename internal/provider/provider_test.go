@@ -33,8 +33,10 @@ func TestProviderSchema(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected schema attribute %q", name)
 		}
-		if !attr.IsRequired() {
-			t.Fatalf("expected attribute %q to be required", name)
+		// Optional so the SILO_BASE_URL / SILO_API_KEY fallback in
+		// Configure stays reachable.
+		if !attr.IsOptional() {
+			t.Fatalf("expected attribute %q to be optional", name)
 		}
 	}
 	if !resp.Schema.Attributes["api_key"].IsSensitive() {

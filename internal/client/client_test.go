@@ -135,6 +135,25 @@ func TestUpdateAccessGroupSendsIfMatch(t *testing.T) {
 	}
 }
 
+func TestUpdateAccessGroupEmptyEtagOmitsIfMatch(t *testing.T) {
+	// An empty etag must not become "*": the PUT goes out unguarded and the
+	// server's 428 becomes a diagnostic instead of a silent overwrite.
+	var gotMatch string
+	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMatch = r.Header.Get("If-Match")
+		w.WriteHeader(http.StatusPreconditionRequired)
+		_ = json.NewEncoder(w).Encode(map[string]string{"detail": "If-Match required"})
+	})
+
+	_, _, err := cl.UpdateAccessGroup(context.Background(), "7", "", &AccessGroupWrite{Name: "Test"})
+	if !IsPreconditionRequired(err) {
+		t.Fatalf("expected 428, got: %v", err)
+	}
+	if gotMatch != "" {
+		t.Fatalf("expected no If-Match header, got %q", gotMatch)
+	}
+}
+
 func TestDeleteAccessGroupNotFoundIsSuccess(t *testing.T) {
 	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

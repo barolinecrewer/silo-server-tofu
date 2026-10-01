@@ -118,13 +118,3 @@ func IsUnprocessableEntity(err error) bool {
 	var apiErr *APIError
 	return errors.As(err, &apiErr) && apiErr.Response.StatusCode == http.StatusUnprocessableEntity
 }
-
-// CurrentETag returns the API's current ETag from a 412 response, or the
-// empty string. Useful for diagnostics that tell the user how to recover.
-func CurrentETag(err error) string {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
-		return apiErr.Response.ETag
-	}
-	return ""
-}

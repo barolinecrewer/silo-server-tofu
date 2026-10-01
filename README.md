@@ -22,7 +22,7 @@ groups, invite codes, API keys, and library assignments.
 ## Requirements
 
 - OpenTofu 1.7+ (or Terraform 1.7+)
-- Go 1.24+ to build from source
+- Go 1.25+ to build from source
 - A Silo server, and an **admin-owned API key** for admin resources
   (keys inherit their owner's permissions)
 
@@ -89,7 +89,7 @@ graph TD
         models["access_groups.go<br/>domain models + calls<br/>(one file per API domain)"]
     end
 
-    contract["live OpenAPI 3 contract<br/>&lt;server&gt;/api/v2/openapi.json<br/>~619 paths · ~1034 schemas"]
+    contract["live OpenAPI 3 contract<br/>&lt;server&gt;/api/v2/openapi.json"]
 
     API["Silo server /api/v2"]
 

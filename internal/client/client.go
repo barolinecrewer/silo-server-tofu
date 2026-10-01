@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -91,6 +92,9 @@ type Response struct {
 	ETag       string
 	RequestID  string
 	Body       []byte
+	// RetryAfterSeconds is the server's Retry-After header on a 429, when
+	// it is sent as delay seconds; 0 when absent or unparsable.
+	RetryAfterSeconds int
 }
 
 // request performs one HTTP round trip against the API. It applies bearer
@@ -141,6 +145,11 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 		RequestID:  resp.Header.Get("X-Request-Id"),
 		Body:       raw,
 	}
+	if s := resp.Header.Get("Retry-After"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			out.RetryAfterSeconds = n
+		}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return out, newAPIError(method, path, out)
 	}
@@ -155,24 +164,30 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 
 	var resp *Response
 	var err error
+	wait := time.Duration(0)
 	for attempt := 0; attempt < maxReadAttempts; attempt++ {
 		if attempt > 0 {
 			// Back off and respect cancellation while waiting to retry.
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+			case <-time.After(wait):
 			}
 		}
 		resp, err = c.request(ctx, method, path, query, in, headers)
 		if err == nil {
 			break
 		}
+		wait = time.Duration(attempt+1) * 500 * time.Millisecond
 		if apiErr, ok := err.(*APIError); ok {
-			// 429 on a read: retry with the backoff above. Other status
-			// codes are contract errors, not transient ones.
+			// 429 on a read: retry, honoring the server's Retry-After when
+			// it sends one. Other status codes are contract errors, not
+			// transient ones.
 			if !(readonly && apiErr.Response.StatusCode == http.StatusTooManyRequests) {
 				return resp, err
+			}
+			if apiErr.Response.RetryAfterSeconds > 0 {
+				wait = time.Duration(apiErr.Response.RetryAfterSeconds) * time.Second
 			}
 			continue
 		}
@@ -194,12 +209,13 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	return resp, nil
 }
 
-// ifMatch returns the If-Match header value for a guarded write. An empty
-// state etag means the resource was imported without one; "*" overwrites
-// deliberately, which is the documented fallback.
+// ifMatch returns the If-Match header for a guarded write, or nil when no
+// etag is known. Sending no header lets the server answer 428 (precondition
+// required), which surfaces as a diagnostic — never silently overwrite with
+// "*"; that value is a deliberate escape hatch the provider never sends.
 func ifMatch(etag string) map[string]string {
 	if strings.TrimSpace(etag) == "" {
-		return map[string]string{"If-Match": "*"}
+		return nil
 	}
 	return map[string]string{"If-Match": etag}
 }
