@@ -78,7 +78,7 @@ Non-goals:
 ```
 silo-server-tofu/
 ├── AGENTS.md                  this file
-├── CLAUDE.md                  pointer to this file
+├── CLAUDE.md                  symlink to this file
 ├── README.md                  project overview + scaffold diagram
 ├── main.go                    provider entry point (providerserver)
 ├── go.mod / go.sum            module github.com/barolinecrewer/silo-server-tofu
