@@ -222,6 +222,23 @@ func (r *accessGroupResource) Create(ctx context.Context, req resource.CreateReq
 
 	accessGroupModelFromClient(ctx, group, etag, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if resp.Diagnostics.HasError() || etag != "" {
+		return
+	}
+
+	// The 201 carries only Location, no ETag. Read it now so later guarded
+	// writes (including a destroy without refresh) have one. State is already
+	// saved above, so a failure here taints the resource instead of orphaning it.
+	group, etag, err = r.client.GetAccessGroup(ctx, plan.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading access group",
+			"Created access group "+plan.ID.ValueString()+" but could not read its ETag: "+err.Error(),
+		)
+		return
+	}
+	accessGroupModelFromClient(ctx, group, etag, &plan)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 // Read refreshes state. A 404 means the group is gone: remove it from state.
@@ -270,23 +287,7 @@ func (r *accessGroupResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	// The create response and a fresh import carry no ETag; read the current
-	// one so the PUT is properly guarded. An unguarded PUT would either get a
-	// 428 or, worse, silently overwrite external changes.
-	etag := state.ETag.ValueString()
-	if etag == "" {
-		_, current, err := r.client.GetAccessGroup(ctx, state.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading access group",
-				"Could not read access group "+state.ID.ValueString()+" before update: "+err.Error(),
-			)
-			return
-		}
-		etag = current
-	}
-
-	group, etag, err := r.client.UpdateAccessGroup(ctx, state.ID.ValueString(), etag, write)
+	group, etag, err := r.client.UpdateAccessGroup(ctx, state.ID.ValueString(), state.ETag.ValueString(), write)
 	if err != nil {
 		if client.IsPreconditionFailed(err) || client.IsPreconditionRequired(err) {
 			resp.Diagnostics.AddError(
