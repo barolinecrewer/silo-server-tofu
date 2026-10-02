@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
@@ -118,6 +119,8 @@ func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServ
 }
 
 func TestAccAccessGroupResource(t *testing.T) {
+	// Random names keep a dangling group from an aborted run from 409ing the next.
+	name := acctest.RandomWithPrefix("tf-acc")
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -128,7 +131,7 @@ func TestAccAccessGroupResource(t *testing.T) {
 			{
 				Config: testAccProviderConfigWrapper(`
 resource "silo_access_group" "test" {
-  name              = "tf-acc-test"
+  name              = "` + name + `"
   description       = "created by acceptance tests"
   download_allowed  = true
   requests_allowed  = true
@@ -136,7 +139,7 @@ resource "silo_access_group" "test" {
 }`),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestMatchResourceAttr("silo_access_group.test", "id", idPattern),
-					resource.TestCheckResourceAttr("silo_access_group.test", "name", "tf-acc-test"),
+					resource.TestCheckResourceAttr("silo_access_group.test", "name", name),
 					resource.TestCheckResourceAttr("silo_access_group.test", "max_streams", "4"),
 				),
 			},
@@ -145,7 +148,7 @@ resource "silo_access_group" "test" {
 				// accompany the PUT and the new etag must land in state.
 				Config: testAccProviderConfigWrapper(`
 resource "silo_access_group" "test" {
-  name              = "tf-acc-test"
+  name              = "` + name + `"
   description       = "updated by acceptance tests"
   download_allowed  = true
   requests_allowed  = true
@@ -169,6 +172,7 @@ resource "silo_access_group" "test" {
 }
 
 func TestAccAccessGroupsDataSource(t *testing.T) {
+	name := acctest.RandomWithPrefix("tf-acc-ds")
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -179,13 +183,15 @@ func TestAccAccessGroupsDataSource(t *testing.T) {
 			{
 				Config: testAccProviderConfigWrapper(`
 resource "silo_access_group" "test" {
-  name = "tf-acc-ds-test"
+  name = "` + name + `"
 }
 
-data "silo_access_groups" "all" {}
+data "silo_access_groups" "all" {
+  depends_on = [silo_access_group.test]
+}
 
 output "found" {
-  value = contains([for g in data.silo_access_groups.all.access_groups : g.name], "tf-acc-ds-test")
+  value = contains([for g in data.silo_access_groups.all.access_groups : g.name], "` + name + `")
 }`),
 				Check: resource.TestCheckOutput("found", "true"),
 			},

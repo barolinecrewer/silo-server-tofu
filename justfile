@@ -1,3 +1,6 @@
+# Load SILO_ACC_* from a gitignored .env for local acceptance runs.
+set dotenv-load
+
 module := "github.com/barolinecrewer/silo-server-tofu"
 binary := "bin/terraform-provider-silo"
 # The CLI used for acceptance tests and example validation. OpenTofu is
@@ -25,7 +28,13 @@ testacc:
         echo "neither tofu nor terraform found in PATH" >&2
         exit 1
     fi
-    TF_ACC=1 TF_ACC_TERRAFORM_PATH="{{ tofu }}" \
+    # The harness reattaches the provider under registry.terraform.io with
+    # namespaces "-" and "hashicorp"; tofu rejects "-" and resolves a bare
+    # "silo" to registry.opentofu.org/hashicorp/silo, so pin both.
+    if [ "$(basename "{{ tofu }}")" = "tofu" ]; then
+        export TF_ACC_PROVIDER_HOST=registry.opentofu.org
+    fi
+    TF_ACC=1 TF_ACC_TERRAFORM_PATH="{{ tofu }}" TF_ACC_PROVIDER_NAMESPACE=hashicorp \
         go test -v -count=1 ./internal/provider/ -run 'TestAcc'
 
 # tofu-validate: build the provider and validate every example with the
