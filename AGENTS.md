@@ -244,6 +244,8 @@ Same as above, but first classify it from the reference:
   - `SILO_ACC_API_KEY` — an admin-owned API key on that server
   They create and destroy real resources. **Never point them at a production
   server** or at an instance with real libraries; they are destructive.
+  The development server configured in this repo's gitignored `.env` is a
+  confirmed throwaway server and is the intended acceptance test target.
 - **Acceptance tests run the OpenTofu CLI.** The test harness picks its CLI
   from `TF_ACC_TERRAFORM_PATH`; `just testacc` wires it to `tofu` on PATH
   (falling back to `terraform`). Version checks (`tfversion.SkipBelow`)

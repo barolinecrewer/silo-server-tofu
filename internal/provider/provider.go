@@ -118,6 +118,7 @@ func (p *siloProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 func (p *siloProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewAccessGroupResource,
+		NewAccountResource,
 	}
 }
 
@@ -125,6 +126,7 @@ func (p *siloProvider) Resources(_ context.Context) []func() resource.Resource {
 func (p *siloProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewAccessGroupsDataSource,
+		NewAccountsDataSource,
 	}
 }
 
