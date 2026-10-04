@@ -101,7 +101,7 @@ func (c *Client) CreateAccessGroup(ctx context.Context, write *AccessGroupWrite)
 // GetAccessGroup reads one group and returns its current ETag.
 func (c *Client) GetAccessGroup(ctx context.Context, id string) (*AccessGroup, string, error) {
 	var out AccessGroup
-	resp, err := c.do(ctx, http.MethodGet, fmt.Sprintf(pathAccessGroupFmt, id), nil, nil, &out, nil)
+	resp, err := c.do(ctx, http.MethodGet, fmt.Sprintf(pathAccessGroupFmt, url.PathEscape(id)), nil, nil, &out, nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -112,7 +112,7 @@ func (c *Client) GetAccessGroup(ctx context.Context, id string) (*AccessGroup, s
 // last read (state); a stale etag returns a 412 APIError.
 func (c *Client) UpdateAccessGroup(ctx context.Context, id, etag string, write *AccessGroupWrite) (*AccessGroup, string, error) {
 	var out AccessGroup
-	resp, err := c.do(ctx, http.MethodPut, fmt.Sprintf(pathAccessGroupFmt, id), nil, write, &out, ifMatch(etag))
+	resp, err := c.do(ctx, http.MethodPut, fmt.Sprintf(pathAccessGroupFmt, url.PathEscape(id)), nil, write, &out, ifMatch(etag))
 	if err != nil {
 		return nil, "", err
 	}
@@ -122,7 +122,7 @@ func (c *Client) UpdateAccessGroup(ctx context.Context, id, etag string, write *
 // DeleteAccessGroup removes a group. A 404 is returned as nil (already
 // gone); other errors are APIErrors.
 func (c *Client) DeleteAccessGroup(ctx context.Context, id, etag string) error {
-	resp, err := c.do(ctx, http.MethodDelete, fmt.Sprintf(pathAccessGroupFmt, id), nil, nil, nil, ifMatch(etag))
+	resp, err := c.do(ctx, http.MethodDelete, fmt.Sprintf(pathAccessGroupFmt, url.PathEscape(id)), nil, nil, nil, ifMatch(etag))
 	if err != nil {
 		if IsNotFound(err) {
 			return nil
@@ -176,8 +176,11 @@ func (c *Client) ListAllAccessGroups(ctx context.Context) ([]AccessGroupListItem
 			return nil, err
 		}
 		all = append(all, items...)
-		if !page.HasMore || page.NextCursor == "" {
+		if !page.HasMore {
 			return all, nil
+		}
+		if page.NextCursor == "" {
+			return nil, fmt.Errorf("access group list has_more without next_cursor")
 		}
 		cursor = page.NextCursor
 	}

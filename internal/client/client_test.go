@@ -135,6 +135,35 @@ func TestUpdateAccessGroupSendsIfMatch(t *testing.T) {
 	}
 }
 
+func TestAccessGroupItemRequestsEscapeID(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.RequestURI != "/api/v2/admin/access-groups/a%2Fb%3Fc" {
+					t.Errorf("unexpected request URI: %s", r.RequestURI)
+				}
+				if method == http.MethodDelete {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(AccessGroup{ID: "a/b?c", Name: "Test"})
+			})
+			var err error
+			switch method {
+			case http.MethodGet:
+				_, _, err = cl.GetAccessGroup(context.Background(), "a/b?c")
+			case http.MethodPut:
+				_, _, err = cl.UpdateAccessGroup(context.Background(), "a/b?c", `"v1"`, &AccessGroupWrite{Name: "Test"})
+			case http.MethodDelete:
+				err = cl.DeleteAccessGroup(context.Background(), "a/b?c", `"v1"`)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestUpdateAccessGroupEmptyEtagOmitsIfMatch(t *testing.T) {
 	// An empty etag must not become "*": the PUT goes out unguarded and the
 	// server's 428 becomes a diagnostic instead of a silent overwrite.
@@ -194,6 +223,15 @@ func TestListAllAccessGroupsWalksCursors(t *testing.T) {
 	}
 }
 
+func TestListAllAccessGroupsRejectsMissingCursor(t *testing.T) {
+	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"items":[{"id":"1"}],"page":{"has_more":true}}`)
+	})
+	if _, err := cl.ListAllAccessGroups(context.Background()); err == nil || !strings.Contains(err.Error(), "has_more without next_cursor") {
+		t.Fatalf("expected missing cursor error, got %v", err)
+	}
+}
+
 func TestAPIErrorClassifiers(t *testing.T) {
 	makeErr := func(status int) error {
 		return newAPIError(http.MethodGet, "/x", &Response{StatusCode: status, Body: []byte(`{"detail":"boom"}`)})
@@ -217,6 +255,17 @@ func TestAPIErrorClassifiers(t *testing.T) {
 	apiErr, ok := err.(*APIError)
 	if !ok || !strings.Contains(apiErr.Error(), "boom") {
 		t.Fatalf("problem detail should surface in error, got: %v", err)
+	}
+}
+
+func TestAPIErrorIncludesRequestIDWithDetail(t *testing.T) {
+	err := newAPIError(http.MethodGet, "/x", &Response{
+		StatusCode: http.StatusInternalServerError,
+		RequestID:  "req-123",
+		Body:       []byte(`{"detail":"server failed"}`),
+	})
+	if !strings.Contains(err.Error(), "server failed") || !strings.Contains(err.Error(), "req-123") {
+		t.Fatalf("expected detail and request ID, got %q", err.Error())
 	}
 }
 

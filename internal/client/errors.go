@@ -23,14 +23,14 @@ type APIError struct {
 // below so call sites branch on meaning, not numbers.
 func (e *APIError) Error() string {
 	base := fmt.Sprintf("API error %s %s: %d", e.Method, e.Path, e.Response.StatusCode)
+	if e.Response.RequestID != "" {
+		base += fmt.Sprintf(" (request id %s)", e.Response.RequestID)
+	}
 	if e.Detail != "" {
 		return fmt.Sprintf("%s: %s", base, e.Detail)
 	}
 	if len(e.Response.Body) > 0 {
 		return fmt.Sprintf("%s: %s", base, string(e.Response.Body))
-	}
-	if e.Response.RequestID != "" {
-		return fmt.Sprintf("%s (request id %s)", base, e.Response.RequestID)
 	}
 	return base
 }
