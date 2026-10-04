@@ -55,6 +55,9 @@ func (c Config) Validate() (Config, error) {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return c, fmt.Errorf("base_url %q must use http or https", c.BaseURL)
 	}
+	if u.Hostname() == "" || u.User != nil || strings.ContainsAny(raw, "?#") {
+		return c, fmt.Errorf("base_url must be a server root with a host and no credentials, query, or fragment")
+	}
 	if strings.HasSuffix(u.Path, DefaultBasePath) || strings.Contains(u.Path, DefaultBasePath+"/") {
 		return c, fmt.Errorf("base_url %q must be the server root without the %s path", c.BaseURL, DefaultBasePath)
 	}
@@ -92,9 +95,7 @@ type Response struct {
 	ETag       string
 	RequestID  string
 	Body       []byte
-	// RetryAfterSeconds is the server's Retry-After header on a 429, when
-	// it is sent as delay seconds; 0 when absent or unparsable.
-	RetryAfterSeconds int
+	RetryAfter string
 }
 
 // request performs one HTTP round trip against the API. It applies bearer
@@ -144,11 +145,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 		ETag:       resp.Header.Get("ETag"),
 		RequestID:  resp.Header.Get("X-Request-Id"),
 		Body:       raw,
-	}
-	if s := resp.Header.Get("Retry-After"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			out.RetryAfterSeconds = n
-		}
+		RetryAfter: resp.Header.Get("Retry-After"),
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return out, newAPIError(method, path, out)
@@ -186,9 +183,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 			if !(readonly && apiErr.Response.StatusCode == http.StatusTooManyRequests) {
 				return resp, err
 			}
-			if apiErr.Response.RetryAfterSeconds > 0 {
-				wait = time.Duration(apiErr.Response.RetryAfterSeconds) * time.Second
-			}
+			wait = retryDelay(apiErr.Response.RetryAfter, wait)
 			continue
 		}
 		// Transport error. Reads may retry; writes must not (the request
@@ -207,6 +202,16 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		}
 	}
 	return resp, nil
+}
+
+func retryDelay(header string, fallback time.Duration) time.Duration {
+	if seconds, err := strconv.ParseInt(header, 10, 64); err == nil && seconds >= 0 && seconds <= (1<<63-1)/int64(time.Second) {
+		return time.Duration(seconds) * time.Second
+	}
+	if date, err := http.ParseTime(header); err == nil {
+		return max(0, time.Until(date))
+	}
+	return fallback
 }
 
 // ifMatch returns the If-Match header for a guarded write, or nil when no

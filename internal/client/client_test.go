@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigValidate(t *testing.T) {
@@ -37,6 +38,26 @@ func TestConfigValidate(t *testing.T) {
 			wantErr: "without the /api/v2 path",
 		},
 		{
+			name:    "missing host",
+			in:      Config{BaseURL: "https:///silo", APIKey: "k"},
+			wantErr: "server root with a host",
+		},
+		{
+			name:    "userinfo",
+			in:      Config{BaseURL: "https://user:pass@silo.example.org", APIKey: "k"},
+			wantErr: "no credentials, query, or fragment",
+		},
+		{
+			name:    "query",
+			in:      Config{BaseURL: "https://silo.example.org/?x=1", APIKey: "k"},
+			wantErr: "no credentials, query, or fragment",
+		},
+		{
+			name:    "fragment",
+			in:      Config{BaseURL: "https://silo.example.org/#section", APIKey: "k"},
+			wantErr: "no credentials, query, or fragment",
+		},
+		{
 			name:    "empty api key",
 			in:      Config{BaseURL: "https://silo.example.org", APIKey: "  "},
 			wantErr: "api_key is empty",
@@ -55,6 +76,23 @@ func TestConfigValidate(t *testing.T) {
 				t.Fatalf("expected error containing %q, got: %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+func TestRetryDelay(t *testing.T) {
+	fallback := 500 * time.Millisecond
+	if got := retryDelay("2", fallback); got != 2*time.Second {
+		t.Fatalf("delay seconds: got %v", got)
+	}
+	if got := retryDelay("0", fallback); got != 0 {
+		t.Fatalf("zero delay: got %v", got)
+	}
+	date := time.Now().Add(5 * time.Second).UTC().Format(http.TimeFormat)
+	if got := retryDelay(date, fallback); got < 3*time.Second || got > 5*time.Second {
+		t.Fatalf("HTTP-date delay: got %v", got)
+	}
+	if got := retryDelay("invalid", fallback); got != fallback {
+		t.Fatalf("invalid header: got %v", got)
 	}
 }
 
