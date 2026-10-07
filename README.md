@@ -8,7 +8,7 @@ collections, API keys, invite codes, settings, and the rest of the
 administrative plane.
 
 Status: **early implementation**. The provider builds and serves; access
-groups and accounts have resources and list data sources. See the
+groups, accounts, and API keys have resources and list data sources. See the
 [coverage roadmap](#coverage-roadmap) for what lands next.
 
 ## Why
@@ -128,7 +128,7 @@ they graduate.
 | --- | --- | --- |
 | Access groups | `silo_access_group` (resource), `silo_access_groups` (data source) | pattern implementation |
 | Accounts / users | `silo_account` (resource), `silo_accounts` (data source) | implemented; acceptance tested on the throwaway dev server |
-| API keys | `silo_api_key` (resource), `silo_api_keys` (data source) | planned |
+| API keys | `silo_api_key` (resource), `silo_api_keys` (data source) | implemented; acceptance tested on the throwaway dev server |
 | Libraries | `silo_library` (resource), `silo_libraries` (data source) | planned |
 | Collections | `silo_collection`, `silo_collection_group` | planned |
 | Invite codes | `silo_invite_code` | planned |
