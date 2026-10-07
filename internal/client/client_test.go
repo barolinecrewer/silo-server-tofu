@@ -270,6 +270,112 @@ func TestListAllAccessGroupsRejectsMissingCursor(t *testing.T) {
 	}
 }
 
+// --- API keys ---------------------------------------------------------------
+
+func TestAPIKeyCreateMarshalsOmittedAndExplicitFields(t *testing.T) {
+	// Create body: unset fields are omitted; the server defaults apply
+	// (an omitted user_id means the authenticated account).
+	create := &APIKeyCreate{Label: "ci"}
+	buf, err := json.Marshal(create)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(buf) != `{"label":"ci"}` {
+		t.Fatalf("unexpected create body: %s", buf)
+	}
+
+	scopes := []string{"admin:read"}
+	userID := "7"
+	explicit := &APIKeyCreate{Label: "ci", Scopes: &scopes, UserID: &userID}
+	buf, err = json.Marshal(explicit)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(buf) != `{"label":"ci","scopes":["admin:read"],"user_id":"7"}` {
+		t.Fatalf("unexpected explicit body: %s", buf)
+	}
+}
+
+func TestCreateAPIKeyParsesOneTimeKey(t *testing.T) {
+	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v2/admin/api-keys" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(APIKeyCreated{ID: "3", Key: "sa_one_time"})
+	})
+
+	created, err := cl.CreateAPIKey(context.Background(), &APIKeyCreate{Label: "ci"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created.ID != "3" || created.Key != "sa_one_time" {
+		t.Fatalf("unexpected created payload: %+v", created)
+	}
+}
+
+func TestUpdateAPIKeyTierSendsIfMatchAndBody(t *testing.T) {
+	var gotMatch, gotBody string
+	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMatch = r.Header.Get("If-Match")
+		buf, _ := io.ReadAll(r.Body)
+		gotBody = string(buf)
+		w.Header().Set("ETag", `"v2"`)
+		_ = json.NewEncoder(w).Encode(APIKey{ID: "3", RateTier: "elevated"})
+	})
+
+	_, etag, err := cl.UpdateAPIKeyTier(context.Background(), "3", `"v1"`, "elevated")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMatch != `"v1"` {
+		t.Fatalf("expected If-Match %q, got %q", `"v1"`, gotMatch)
+	}
+	if gotBody != `{"rate_tier":"elevated"}` {
+		t.Fatalf("unexpected tier body: %s", gotBody)
+	}
+	if etag != `"v2"` {
+		t.Fatalf("expected etag %q, got %q", `"v2"`, etag)
+	}
+}
+
+func TestDeleteAPIKeyNotFoundIsSuccess(t *testing.T) {
+	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	if err := cl.DeleteAPIKey(context.Background(), "3", `"v1"`); err != nil {
+		t.Fatalf("404 should be treated as deleted, got: %v", err)
+	}
+}
+
+func TestListAllAPIKeysWalksCursors(t *testing.T) {
+	pages := []string{
+		`{"items":[{"id":"1","username":"ada","last_used_at":null}],"page":{"has_more":true,"next_cursor":"C2"}}`,
+		`{"items":[{"id":"2","username":"bob","last_used_at":"2026-01-01T00:00:00Z"}],"page":{"has_more":false}}`,
+	}
+	var gotCursors []string
+	cl, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotCursors = append(gotCursors, r.URL.Query().Get("cursor"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(pages[len(gotCursors)-1]))
+	})
+
+	keys, err := cl.ListAllAPIKeys(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 2 || keys[0].ID != "1" || keys[1].ID != "2" {
+		t.Fatalf("unexpected keys across pages: %+v", keys)
+	}
+	if keys[0].LastUsedAt != nil || keys[1].LastUsedAt == nil {
+		t.Fatalf("unexpected last_used_at values: %+v", keys)
+	}
+	if len(gotCursors) != 2 || gotCursors[0] != "" || gotCursors[1] != "C2" {
+		t.Fatalf("expected cursor walk (\"\", C2), got %v", gotCursors)
+	}
+}
+
 func TestAPIErrorClassifiers(t *testing.T) {
 	makeErr := func(status int) error {
 		return newAPIError(http.MethodGet, "/x", &Response{StatusCode: status, Body: []byte(`{"detail":"boom"}`)})

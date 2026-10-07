@@ -119,6 +119,7 @@ func (p *siloProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewAccessGroupResource,
 		NewAccountResource,
+		NewAPIKeyResource,
 	}
 }
 
@@ -127,6 +128,7 @@ func (p *siloProvider) DataSources(_ context.Context) []func() datasource.DataSo
 	return []func() datasource.DataSource{
 		NewAccessGroupsDataSource,
 		NewAccountsDataSource,
+		NewAPIKeysDataSource,
 	}
 }
 
